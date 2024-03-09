@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import ttest_ind,mannwhitneyu,ttest_rel,ttest_1samp
 from scipy.stats import chi2_contingency,f_oneway
+from sklearn.feature_selection import mutual_info_classification
 
 def internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:list=[],pvalue:float=0.05):
     """
@@ -31,7 +32,7 @@ def internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:li
                     selected_columns.append(columna)
     return selected_columns
 
-def internal_sns_pairplot(num_pair_plots:int,columns_per_plot:int,columns_for_pairplot:list,df:pd.DataFrame):
+def internal_sns_pairplot(num_pair_plots:int,columns_per_plot:int,columns_for_pairplot:list,df:pd.DataFrame,target_col:str):
         
         for i in range(num_pair_plots):
             start_idx = i * columns_per_plot
@@ -39,10 +40,10 @@ def internal_sns_pairplot(num_pair_plots:int,columns_per_plot:int,columns_for_pa
             current_columns = columns_for_pairplot[start_idx:end_idx + 1]  # Include the 'target' column
             # Create a pair plot with Seaborn for the current group of columns
             sns.set_theme(style="ticks")
-            pair_plot = sns.pairplot(df[current_columns], hue='target', palette='viridis')
+            pair_plot = sns.pairplot(df, hue=target_col, vars=current_columns,palette='viridis')
             # Adjust layout and show the plot
-            plt.tight_layout()
-            plt.show()
+            plt.tight_layout();
+            plt.show();
         return plt
 
 def get_features_num_classification (df:pd.DataFrame,target_col:str,pvalue:float=0.05):
@@ -69,7 +70,7 @@ def get_features_num_classification (df:pd.DataFrame,target_col:str,pvalue:float
     num_values=['float32','int32','float64','int64','int8', 'int16', 'float16','uint8', 'uint16', 'uint32', 'uint64']
     lista_num_columnas=[]
     for columna in df.columns:
-        if columna.dtype in num_values:
+        if df[columna].dtype in num_values:
             lista_num_columnas.append(columna)
     #ANOVA
     selected_columns=[]
@@ -93,6 +94,7 @@ def plot_features_num_classification (df:pd.DataFrame,target_col:str="",columns:
     Si target_Col es superior a 5, se usan diferentes pairplot diferentes, se pinta un pairplot por cada 5 valores de target posibles.
     Si la lista de columnas a pintar es grande se pinten varios pairplot con un máximo de cinco columnas en cada pairplot,
     siendo siempre una de ellas la indicada por "target_col"
+
     Argumentos:
 
     `df` (DataFrame): Variable dataframe de Pandas.
@@ -106,11 +108,15 @@ def plot_features_num_classification (df:pd.DataFrame,target_col:str="",columns:
     #ANOVA
     selected_columns= internal_anova_columns(df,target_col,columns,pvalue)
     columns_for_pairplot = df[selected_columns].columns
-    columns_per_plot = 5
+    if  len(columns_for_pairplot) <5:
+        columns_per_plot =  len(columns_for_pairplot) 
+    else:
+        columns_per_plot = 5
+    
     # Calculate the number of pair plots needed
     num_pair_plots = len(columns_for_pairplot) // columns_per_plot
     # Create pair plots for each group of 5 columns
-    plt=internal_sns_pairplot(num_pair_plots,columns_per_plot,columns_for_pairplot,df)
+    plt=internal_sns_pairplot(num_pair_plots,columns_per_plot,columns_for_pairplot,df,target_col)
     '''
     for i in range(num_pair_plots):
         start_idx = i * columns_per_plot
@@ -141,12 +147,13 @@ def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns
     Si target_Col es superior a 5, se usan diferentes pairplot diferentes, se pinta un pairplot por cada 5 valores de target posibles.
     Si la lista de columnas a pintar es grande se pinten varios pairplot con un máximo de cinco columnas en cada pairplot,
     siendo siempre una de ellas la indicada por "target_col"
+
     Argumentos:
 
     `df` (DataFrame): Variable dataframe de Pandas.
     `target_col` (str): Variable target tipo str.
     `columns` (list): Variable con la lista de columnas de tipo list.
-    `pvalue` (float): Variable float con valor por defecto 0.5.    
+    `mi_threshold` (float): Variable float con valor por defecto 0.0.    
     
     Retorna:
     sns.pairplot: Pairplot
@@ -173,7 +180,7 @@ def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns
     return plt
 
 #Javier
-def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshold:float=0.0, normalize:bool=False):
+def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshold:float=0.0, normalize:bool=False,relative:bool=False):
     '''
     Esta función recibe como argumentos un dataframe, el nombre de una de las columnas del mismo (argumento 'target_col'), que debería ser el target de un hipotético 
     modelo de clasificación, es decir debe ser una variable categórica o numérica discreta pero con baja cardinalidad, un argumento "normalize" con valor False por defecto, 
@@ -181,7 +188,7 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
     * En caso de que "normalize" sea False:
         La función debe devolver una lista con las columnas categóricas del dataframe cuyo valor de mutual information con 'target_col' iguale o supere 
         el valor de "mi_threshold".
-    * En caso de que "relative" sea True:
+    * En caso de que "normalize" sea True:
         La función debe devolver una lista con las columnas categóricas del dataframe cuyo valor normalizado de mutual information con 'target_col' iguale o supere 
         el valor de "mi_threshold". 
         El valor normalizado de mutual information se considera el obtenido de dividir el valor de mutual information tal cual ofrece sklearn o la fórmula de cálculo 
@@ -197,35 +204,56 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
     `target_col` (str): Variable target tipo str.
     `mi_threshold` (float): Variable float con valor por defecto 0.0.
     `normalize` (bool): Variable bool con valor por defecto False.
-    
+    `relative` (bool): Variable bool con valor por defecto False.
     Retorna:
     selected_columns: List
 
     '''
+
     # Comprobación de argumentos de entrada
-    if not isinstance(df, pd.DataFrame):
-        print("Error: 'df' debe ser un DataFrame de pandas.")
-        return None
-    
-    if not isinstance(target_col, str):
-        print("Error: 'target_col' debe ser una cadena de caracteres.")
-        return None
-    
+
     if target_col not in df.columns:
-        print("Error: 'target_col' no está presente en el DataFrame.")
+        raise TypeError("'target_col' debe ser una variable categórica o numérica discreta del DataFrame.")
         return None
     
-    if df[target_col].dtype not in ['object', 'category']:
-        print("Error: 'target_col' debe ser una variable categórica o numérica discreta del DataFrame.")
+    if not 0.0 <= mi_threshold <= 1.0 and normalize:
+        raise TypeError("'mi_threshold' debe estar entre 0 y 1 cuando 'normalize' es True.")
         return None
     
-    if not isinstance(mi_threshold, float):
-        print("Error: 'mi_threshold' debe ser un valor float.")
-        return None
+    selected_columns=[]
     
-    if not 0 <= mi_threshold <= 1 and normalize:
-        print("Error: 'mi_threshold' debe estar entre 0 y 1 cuando 'normalize' es True.")
-        return None
+    if normalize==False:
+
+        for columna in df.columns:
+            if columna!=target_col:
+                    mi_score_categorical = mutual_info_classification(df[[columna]], df[target_col])
+                    if mi_score_categorical>=mi_threshold:
+                        if columna not in selected_columns:
+                            selected_columns.append(columna)
+    
+    else:
+        list_mi_score_categorical=[]
+        for columna in df.columns:
+            if columna!=target_col:
+                    list_mi_score_categorical.append(mutual_info_classification(df[[columna]], df[target_col]))
+    #                if mi_score_categorical>=mi_threshold:
+    #                    if columna not in selected_columns:
+    #                        selected_columns.append(columna)
+        mi_normalized=sum(list_mi_score_categorical)/len(list_mi_score_categorical)
+        '''duda'''
+        
+    return selected_columns
+
+'''
+    # Assuming 'Column_20' is a categorical target variable
+    categorical_column = 'Column_1'
+
+    # Compute mutual information between the categorical column and target
+    mi_score_categorical = mutual_info_classification(df[[categorical_column]], df[target_col])
+
+    # Display the mutual information score
+    print(f"Mutual Information between '{categorical_column}' and '{target_col}': {mi_score_categorical[0]}")
+'''
     
 
 
