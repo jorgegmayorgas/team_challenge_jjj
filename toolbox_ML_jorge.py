@@ -31,6 +31,20 @@ def internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:li
                     selected_columns.append(columna)
     return selected_columns
 
+def internal_sns_pairplot(num_pair_plots:int,columns_per_plot:int,columns_for_pairplot:list,df:pd.DataFrame):
+        
+        for i in range(num_pair_plots):
+            start_idx = i * columns_per_plot
+            end_idx = (i + 1) * columns_per_plot
+            current_columns = columns_for_pairplot[start_idx:end_idx + 1]  # Include the 'target' column
+            # Create a pair plot with Seaborn for the current group of columns
+            sns.set_theme(style="ticks")
+            pair_plot = sns.pairplot(df[current_columns], hue='target', palette='viridis')
+            # Adjust layout and show the plot
+            plt.tight_layout()
+            plt.show()
+        return plt
+
 def get_features_num_classification (df:pd.DataFrame,target_col:str,pvalue:float=0.05):
     """
     La función devuelve una lista con las columnas numéricas del dataframe cuyo ANOVA con la columna designada por "target_col" 
@@ -89,7 +103,28 @@ def plot_features_num_classification (df:pd.DataFrame,target_col:str="",columns:
     Retorna:
     sns.pairplot: Pairplot
     """
+    #ANOVA
     selected_columns= internal_anova_columns(df,target_col,columns,pvalue)
+    columns_for_pairplot = df[selected_columns].columns
+    columns_per_plot = 5
+    # Calculate the number of pair plots needed
+    num_pair_plots = len(columns_for_pairplot) // columns_per_plot
+    # Create pair plots for each group of 5 columns
+    plt=internal_sns_pairplot(num_pair_plots,columns_per_plot,columns_for_pairplot,df)
+    '''
+    for i in range(num_pair_plots):
+        start_idx = i * columns_per_plot
+        end_idx = (i + 1) * columns_per_plot
+        current_columns = columns_for_pairplot[start_idx:end_idx + 1]  # Include the 'target' column
+        # Create a pair plot with Seaborn for the current group of columns
+        sns.set_theme(style="ticks")
+        pair_plot = sns.pairplot(df[current_columns], hue='target', palette='viridis')
+        # Adjust layout and show the plot
+        plt.tight_layout()
+        plt.show()
+    '''
+    return plt
+    '''
     if len(selected_columns)>0:
         if len(selected_columns)>5:
             #codigo para bloques de 5
@@ -97,7 +132,45 @@ def plot_features_num_classification (df:pd.DataFrame,target_col:str="",columns:
         else:
             #unico
             pass
-    return None
+    '''
+def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns:list=[], mi_threshold:float=0.0, normalize:bool=False):
+    """
+    La función pinta una pairplot del DataFrame considerando la columna designada por "target_col" y aquellas incluidas en "column" que cumplan el test de ANOVA 
+    para el nivel 1-pvalue de significación estadística. La función devolverá los valores de "columns" que cumplan con las condiciones anteriores. 
+    Se espera que las columnas sean numéricas. El pairplot utiliza como argumento de hue el valor de target_col
+    Si target_Col es superior a 5, se usan diferentes pairplot diferentes, se pinta un pairplot por cada 5 valores de target posibles.
+    Si la lista de columnas a pintar es grande se pinten varios pairplot con un máximo de cinco columnas en cada pairplot,
+    siendo siempre una de ellas la indicada por "target_col"
+    Argumentos:
+
+    `df` (DataFrame): Variable dataframe de Pandas.
+    `target_col` (str): Variable target tipo str.
+    `columns` (list): Variable con la lista de columnas de tipo list.
+    `pvalue` (float): Variable float con valor por defecto 0.5.    
+    
+    Retorna:
+    sns.pairplot: Pairplot
+    """
+    if target_col and df[target_col].dtype not in ['object', 'category']:
+        print("Error: 'target_col' debe ser una variable categórica del DataFrame.")
+        return
+    if not 0 <= mi_threshold <= 1 and normalize:
+        print("Error: 'mi_threshold' debe estar entre 0 y 1 cuando 'normalize' es True.")
+        return
+    
+    if not columns:
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+    else:
+        categorical_cols = columns
+
+    selected_columns= internal_anova_columns(df,target_col,categorical_cols,mi_threshold)
+    columns_for_pairplot = df[selected_columns].columns
+    columns_per_plot = 5
+    # Calculate the number of pair plots needed
+    num_pair_plots = len(columns_for_pairplot) // columns_per_plot
+    plt=internal_sns_pairplot(num_pair_plots,columns_per_plot,columns_for_pairplot,df)
+
+    return plt
 
 #Javier
 def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshold:float=0.0, normalize:bool=False):
@@ -154,49 +227,7 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         print("Error: 'mi_threshold' debe estar entre 0 y 1 cuando 'normalize' es True.")
         return None
     
-def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns:list=[], mi_threshold:float=0.0, normalize:bool=False):
-    """
-    La función pinta una pairplot del DataFrame considerando la columna designada por "target_col" y aquellas incluidas en "column" que cumplan el test de ANOVA 
-    para el nivel 1-pvalue de significación estadística. La función devolverá los valores de "columns" que cumplan con las condiciones anteriores. 
-    Se espera que las columnas sean numéricas. El pairplot utiliza como argumento de hue el valor de target_col
-    Si target_Col es superior a 5, se usan diferentes pairplot diferentes, se pinta un pairplot por cada 5 valores de target posibles.
-    Si la lista de columnas a pintar es grande se pinten varios pairplot con un máximo de cinco columnas en cada pairplot,
-    siendo siempre una de ellas la indicada por "target_col"
-    Argumentos:
 
-    `df` (DataFrame): Variable dataframe de Pandas.
-    `target_col` (str): Variable target tipo str.
-    `columns` (list): Variable con la lista de columnas de tipo list.
-    `pvalue` (float): Variable float con valor por defecto 0.5.    
-    
-    Retorna:
-    sns.pairplot: Pairplot
-    """
-    if not isinstance(df, pd.DataFrame):
-        print("Error: 'df' debe ser un DataFrame de pandas.")
-        return
-    
-    if not isinstance(target_col, str):
-        print("Error: 'target_col' debe ser una cadena de caracteres.")
-        return
-    
-    if target_col and df[target_col].dtype not in ['object', 'category']:
-        print("Error: 'target_col' debe ser una variable categórica del DataFrame.")
-        return
-    
-    if not isinstance(columns, list):
-        print("Error: 'columns' debe ser una lista de strings.")
-        return
-    
-    if not 0 <= mi_threshold <= 1 and normalize:
-        print("Error: 'mi_threshold' debe estar entre 0 y 1 cuando 'normalize' es True.")
-        return
-    
-    if not columns:
-        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-    else:
-        categorical_cols = columns
-    return None
 
 #version inicial toolbox_ML.py
 def describe_df(df:pd.DataFrame):
