@@ -8,6 +8,11 @@ from scipy.stats import ttest_ind,mannwhitneyu,ttest_rel,ttest_1samp
 from scipy.stats import chi2_contingency,f_oneway
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.preprocessing import StandardScaler,MinMaxScaler,OneHotEncoder
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, precision_score, recall_score, classification_report, confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split
+
 def _internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:list=[],pvalue:float=0.05):
     """
     Uso interno, devuelve una lista con las columnas del dataframe cuyo ANOVA con la columna designada por "target_col" 
@@ -659,3 +664,106 @@ def plot_features_cat_regression(df:pd.DataFrame,target_col:str="", columns:list
                     plt.show()
                     
     return columnas_cat             
+
+
+def eval_model(features, target, problem_type, metrics, model):
+    # Comprobación del tipo de problema
+    if problem_type not in ['regression', 'classification']:
+        raise ValueError("El argumento 'problem_type' debe ser 'regression' o 'classification'.")
+
+    # Comprobación de las métricas
+    valid_regression_metrics = ['RMSE', 'MAE', 'MAPE', 'GRAPH']
+    valid_classification_metrics = ['ACCURACY', 'PRECISION', 'RECALL', 'CLASS_REPORT', 'MATRIX', 'MATRIX_RECALL', 'MATRIX_PRED']
+
+    for metric in metrics:
+        if problem_type == 'regression' and metric not in valid_regression_metrics:
+            raise ValueError(f"La métrica '{metric}' no es válida para un problema de regresión.")
+        elif problem_type == 'classification' and metric not in valid_classification_metrics:
+            raise ValueError(f"La métrica '{metric}' no es válida para un problema de clasificación.")
+
+    # Obtener predicciones reales del modelo
+    predictions = model.predict(features)
+
+    # Métricas de regresión
+    regression_metrics = ()
+    if 'RMSE' in metrics:
+        rmse = np.sqrt(mean_squared_error(target, predictions))
+        print(f'RMSE: {rmse:.4f}')
+        regression_metrics += (rmse,)
+
+    if 'MAE' in metrics:
+        mae = mean_absolute_error(target, predictions)
+        print(f'MAE: {mae:.4f}')
+        regression_metrics += (mae,)
+
+    if 'MAPE' in metrics:
+        try:
+            mape = np.mean(np.abs((target - predictions) / target)) * 100
+            print(f'MAPE: {mape:.4f}%')
+            regression_metrics += (mape,)
+        except ZeroDivisionError:
+            raise ValueError("No se puede calcular MAPE cuando hay valores de target iguales a cero.")
+
+    if 'GRAPH' in metrics:
+        plt.scatter(target, predictions)
+        plt.xlabel('Target')
+        plt.ylabel('Predictions')
+        plt.title('Comparativa entre Target y Predicciones')
+        plt.show()
+
+    # Métricas de clasificación
+    classification_metrics = ()
+    if 'ACCURACY' in metrics:
+        accuracy = accuracy_score(target, predictions.round())
+        print(f'Accuracy: {accuracy:.4f}')
+        classification_metrics += (accuracy,)
+
+    if 'PRECISION' in metrics:
+        precision = precision_score(target, predictions.round(), average='macro')
+        print(f'Precision: {precision:.4f}')
+        classification_metrics += (precision,)
+
+    if 'RECALL' in metrics:
+        recall = recall_score(target, predictions.round(), average='macro')
+        print(f'Recall: {recall:.4f}')
+        classification_metrics += (recall,)
+
+    if 'CLASS_REPORT' in metrics:
+        print('Classification Report:')
+        print(classification_report(target, predictions.round()))
+
+    if 'MATRIX' in metrics:
+        print('Confusion Matrix (Absolute Values):')
+        print(confusion_matrix(target, predictions.round()))
+
+    if 'MATRIX_RECALL' in metrics:
+        disp = ConfusionMatrixDisplay(confusion_matrix(target, predictions.round(), normalize='true'))
+        disp.plot(cmap='Blues', values_format='.2f', xticks_rotation='vertical')
+        plt.title('Confusion Matrix (Normalized by Row - Recall)')
+        plt.show()
+
+    if 'MATRIX_PRED' in metrics:
+        disp = ConfusionMatrixDisplay(confusion_matrix(target, predictions.round(), normalize='pred'))
+        disp.plot(cmap='Blues', values_format='.2f', xticks_rotation='vertical')
+        plt.title('Confusion Matrix (Normalized by Column - Predictions)')
+        plt.show()
+
+    # Métricas específicas de clasificación
+    for metric in metrics:
+        if metric == 'GRAPH':
+            print("La métrica 'GRAPH' no es válida para un problema de clasificación.")
+
+        elif 'PRECISION_' in metric:
+            class_label = metric.split('_')[1]
+            precision_class = precision_score(target, predictions.round(), labels=[class_label], average=None)[0]
+            print(f'Precision {class_label}: {precision_class:.4f}')
+
+        elif 'RECALL_' in metric:
+            class_label = metric.split('_')[1]
+            recall_class = recall_score(target, predictions.round(), labels=[class_label], average=None)[0]
+            print(f'Recall {class_label}: {recall_class:.4f}')
+
+    if problem_type == 'regression':
+        return regression_metrics
+    else:
+        return classification_metrics
