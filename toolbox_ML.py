@@ -301,22 +301,16 @@ def plot_features_num_classification (df:pd.DataFrame,target_col:str="",columns:
     '''
 def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns:list=[], mi_threshold:float=0.0, normalize:bool=False):
     """
-    La función pinta una pairplot del DataFrame considerando la columna designada por "target_col" y aquellas incluidas en "column" que cumplan el test de ANOVA 
-    para el nivel 1-pvalue de significación estadística. La función devolverá los valores de "columns" que cumplan con las condiciones anteriores. 
-    Se espera que las columnas sean numéricas. El pairplot utiliza como argumento de hue el valor de target_col
-    Si target_Col es superior a 5, se usan diferentes pairplot diferentes, se pinta un pairplot por cada 5 valores de target posibles.
-    Si la lista de columnas a pintar es grande se pinten varios pairplot con un máximo de cinco columnas en cada pairplot,
-    siendo siempre una de ellas la indicada por "target_col"
+    Esta función recibe un dataframe, una argumento "target_col" con valor por defecto "", una lista de strings ("columns") cuyo valor por defecto es la lista vacía, un argumento ("mi_threshold") con valor 0.0 por defecto, y un argumento "normalize" a False.
 
-    Argumentos:
+    Si la lista no está vacía:
+    * La función seleccionara de esta lista los valores que correspondan a columnas o features categóricas del dataframe cuyo valor de mutual information respecto de target_col supere el umbral puesto en "mi_threshold" (con las mismas considereciones respecto a "normalize" que se comentan en la descripción de la función "get_features_cat_classification").
+    * Para los valores seleccionados, pintará la distribución de etiquetas de cada valor respecto a los valores de la columna "target_col".
 
-    `df` (DataFrame): Variable dataframe de Pandas.
-    `target_col` (str): Variable target tipo str.
-    `columns` (list): Variable con la lista de columnas de tipo list.
-    `mi_threshold` (float): Variable float con valor por defecto 0.0.    
-    
-    Retorna:
-    sns.pairplot: Pairplot
+    Si la lista está vacía:
+    * Entonces la función igualará "columns" a las variables categóricas del dataframe y se comportará como se describe en la sección "Si la lista no está vacía"
+
+    De igual manera que en la función descrita anteriormente deberá hacer un check de los valores de entrada y comportarse como se describe en el último párrafo de la función `get_features_cat_classification`.
     """
     if target_col and df[target_col].dtype not in ['object', 'category']:
         print("Error: 'target_col' debe ser una variable categórica del DataFrame.")
@@ -330,8 +324,8 @@ def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns
     else:
         categorical_cols = columns
 
-    selected_columns= internal_anova_columns(df,target_col,categorical_cols,mi_threshold)
-    columns_for_pairplot = df[selected_columns].columns
+    #corregir con get_features_cat_classification
+    columns_for_pairplot = df[categorical_cols].columns
     columns_per_plot = 5
     # Calculate the number of pair plots needed
     num_pair_plots = len(columns_for_pairplot) // columns_per_plot
@@ -383,46 +377,41 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         return None
     
     selected_columns=[]
+    tmp_cat_cols=[]
+    tmp_cat_cols = df.select_dtypes(include=['object', 'category']).columns
     cat_cols=[]
-    for column in df.columns:
-        if df[column] in ['object','category']:
-            cat_cols.append(column)
+    for cat_col in tmp_cat_cols:
+        if df[cat_col].nunique()<10:
+            cat_cols.append(cat_col)
 
-    df=internal_onehotencoder(df,cat_cols)
+    if len(cat_col)>0:
+        df=internal_onehotencoder(df,cat_cols)
 
-    if normalize==False:
+        if normalize==False:
 
-        for columna in df.columns:
-            if columna!=target_col:
-                    mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
-                    if mi_score_categorical>=mi_threshold:
-                        if columna not in selected_columns:
-                            selected_columns.append(columna)
-    
-    else:
-        list_mi_score_categorical=[]
-        for columna in df.columns:
-            if columna!=target_col:
-                    list_mi_score_categorical.append(mutual_info_classif(df[[columna]], df[target_col]))
-    #                if mi_score_categorical>=mi_threshold:
-    #                    if columna not in selected_columns:
-    #                        selected_columns.append(columna)
-        mi_normalized=sum(list_mi_score_categorical)/len(list_mi_score_categorical)
-        '''duda'''
+            for columna in df[cat_cols].columns:
+                if columna!=target_col:
+                        mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
+                        if mi_score_categorical>=mi_threshold:
+                            if columna not in selected_columns:
+                                selected_columns.append(columna)
         
-    return selected_columns
+        else:
+            list_mi_score_categorical=[]
+            for columna in df.columns:
+                if columna!=target_col:
+                        list_mi_score_categorical.append(mutual_info_classif(df[[columna]], df[target_col]))
+        #                if mi_score_categorical>=mi_threshold:
+        #                    if columna not in selected_columns:
+        #                        selected_columns.append(columna)
+            #mi_normalized=sum(list_mi_score_categorical)/len(list_mi_score_categorical)
+            '''duda'''
+            
+        return selected_columns
 
-'''
-    # Assuming 'Column_20' is a categorical target variable
-    categorical_column = 'Column_1'
+    else:
 
-    # Compute mutual information between the categorical column and target
-    mi_score_categorical = mutual_info_classification(df[[categorical_column]], df[target_col])
-
-    # Display the mutual information score
-    print(f"Mutual Information between '{categorical_column}' and '{target_col}': {mi_score_categorical[0]}")
-'''
-    
+        return None    
 
 
 #version inicial toolbox_ML.py
