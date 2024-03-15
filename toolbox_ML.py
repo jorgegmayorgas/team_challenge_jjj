@@ -384,12 +384,16 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         if df[cat_col].nunique()<10:
             cat_cols.append(cat_col)
 
-    if len(cat_col)>0:
-        df=internal_onehotencoder(df,cat_cols)
-
+    if len(cat_cols)>0:
+        #df=internal_onehotencoder(df,cat_cols)
+        onehot = OneHotEncoder(sparse_output=False, drop='first') 
+        data = onehot.fit_transform(df[cat_cols])
+        new_features = onehot.get_feature_names_out()
+        df[new_features] = data
+        df.drop(columns= cat_cols, axis = 1)
         if normalize==False:
 
-            for columna in df[cat_cols].columns:
+            for columna in df.columns:
                 if columna!=target_col:
                         mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
                         if mi_score_categorical>=mi_threshold:
