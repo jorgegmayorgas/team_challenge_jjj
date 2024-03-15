@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import ttest_ind,mannwhitneyu,ttest_rel,ttest_1samp,pearsonr
 from scipy.stats import chi2_contingency,f_oneway
-from sklearn.feature_selection import mutual_info_classification
+from sklearn.feature_selection import mutual_info_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, precision_score, recall_score, classification_report, confusion_matrix,ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
@@ -83,6 +83,7 @@ def eval_model(features, target:str, problem_type, metrics, model):
     Retorna:
     Tupla: Tupla con métricas de regresión o clasificacion
     """
+
     # Comprobación del tipo de problema
     if problem_type not in ['regression', 'classification']:
         raise ValueError("El argumento 'problem_type' debe ser 'regression' o 'classification'.")
@@ -344,7 +345,9 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
     `mi_threshold` (float): Variable float con valor por defecto 0.0.
     `normalize` (bool): Variable bool con valor por defecto False.
     `relative` (bool): Variable bool con valor por defecto False.
+
     Retorna:
+    
     selected_columns: List
 
     '''
