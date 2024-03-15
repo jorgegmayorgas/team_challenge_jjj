@@ -9,7 +9,7 @@ from sklearn.feature_selection import mutual_info_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, precision_score, recall_score, classification_report, confusion_matrix,ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler,MinMaxScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler,OneHotEncoder
 
 def internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:list=[],pvalue:float=0.05):
     """
@@ -48,6 +48,26 @@ def internal_sns_pairplot(num_pair_plots:int,columns_per_plot:int,columns_for_pa
             plt.tight_layout();
             plt.show();
         return plt
+
+def internal_onehotencoder(df:pd.DataFrame,features_cat:list):
+    """
+    Turns categorical columns in binary columns
+
+    Arguments:
+
+        `df` (pd.DataFrame): Dataframe de Pandas.
+        `features_cat` (list): List of categorical columns.
+
+    Returns:
+        df: pd.DataFrame
+    """
+    #Turns categorical columns in binary columns
+    onehot = OneHotEncoder(sparse_output=False, drop='first') 
+    data = onehot.fit_transform(df[features_cat])
+    new_features = onehot.get_feature_names_out()
+    df[new_features] = data
+    df.drop(columns= features_cat, axis = 1, inplace = True)
+    return df
 
 def eval_model(features, target:str, problem_type, metrics, model):
 
@@ -363,12 +383,14 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         return None
     
     selected_columns=[]
-    
+    for column in df.columns:
+        
+
     if normalize==False:
 
         for columna in df.columns:
             if columna!=target_col:
-                    mi_score_categorical = mutual_info_classification(df[[columna]], df[target_col])
+                    mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
                     if mi_score_categorical>=mi_threshold:
                         if columna not in selected_columns:
                             selected_columns.append(columna)
@@ -377,7 +399,7 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         list_mi_score_categorical=[]
         for columna in df.columns:
             if columna!=target_col:
-                    list_mi_score_categorical.append(mutual_info_classification(df[[columna]], df[target_col]))
+                    list_mi_score_categorical.append(mutual_info_classif(df[[columna]], df[target_col]))
     #                if mi_score_categorical>=mi_threshold:
     #                    if columna not in selected_columns:
     #                        selected_columns.append(columna)
