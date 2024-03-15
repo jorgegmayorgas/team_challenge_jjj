@@ -1,12 +1,15 @@
+import ast
 import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr
-import ast
 import matplotlib.pyplot as plt 
 import seaborn as sns
-from scipy.stats import ttest_ind,mannwhitneyu,ttest_rel,ttest_1samp
+from scipy.stats import ttest_ind,mannwhitneyu,ttest_rel,ttest_1samp,pearsonr
 from scipy.stats import chi2_contingency,f_oneway
 from sklearn.feature_selection import mutual_info_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, precision_score, recall_score, classification_report, confusion_matrix,ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 
 def internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:list=[],pvalue:float=0.05):
     """
@@ -46,6 +49,142 @@ def internal_sns_pairplot(num_pair_plots:int,columns_per_plot:int,columns_for_pa
             plt.show();
         return plt
 
+def eval_model(features, target:str, problem_type, metrics, model):
+
+    """
+        Esta función debe recibir un target, unas predicciones para ese target, un argumento que determine si el problema es de regresión o clasificación y una lista de métricas:
+        * Si el argumento dice que el problema es de regresión, la lista de métricas debe admitir las siguientes etiquetas RMSE, MAE, MAPE, GRAPH.
+        * Si el argumento dice que el problema es de clasificación, la lista de métrica debe admitir, ACCURACY, PRECISION, RECALL, CLASS_REPORT, MATRIX, MATRIX_RECALL, MATRIX_PRED, PRECISION_X, RECALL_X. En el caso de las _X, X debe ser una etiqueta de alguna de las clases admitidas en el target.
+
+        Funcionamiento:
+        * Para cada etiqueta en la lista de métricas:
+            - RMSE, debe printar por pantalla y devolver el RMSE de la predicción contra el target.
+            - MAE, debe pintar por pantalla y devolver el MAE de la predicción contra el target. 
+            - MAPE, debe pintar por pantalla y devolver el MAPE de la predcción contra el target. Si el MAPE no se pudiera calcular la función debe avisar lanzando un error con un mensaje aclaratorio
+            - GRAPH, la función debe pintar una gráfica comparativa (scatter plot) del target con la predicción
+            - ACCURACY, pintará el accuracy del modelo contra target y lo retornará.
+            - PRECISION, pintará la precision media contra target y la retornará.
+            - RECALL, pintará la recall media contra target y la retornará.
+            - CLASS_REPORT, mostrará el classification report por pantalla.
+            - MATRIX, mostrará la matriz de confusión con los valores absolutos por casilla.
+            - MATRIX_RECALL, mostrará la matriz de confusión con los valores normalizados según el recall de cada fila (si usas ConfussionMatrixDisplay esto se consigue con normalize = "true")
+            - MATRIX_PRED, mostrará la matriz de confusión con los valores normalizados según las predicciones por columna (si usas ConfussionMatrixDisplay esto se consigue con normalize = "pred")
+            - PRECISION_X, mostrará la precisión para la clase etiquetada con el valor que sustituya a X (ej. PRECISION_0, mostrará la precisión de la clase 0)
+            - RECALL_X, mostrará el recall para la clase etiquetada co nel valor que sustituya a X (ej. RECALL_red, mostrará el recall de la clase etiquetada como "red")
+
+    Argumentos:
+
+    `features` (list): Lista de features.
+    `target` (str): Variable target tipo str.
+    `problem_type` (str): Tipo de problema ['regression', 'classification']
+    `metrics` (list): Lista de métricas
+    `model` (ML model): Modelo de ML
+
+    Retorna:
+    Tupla: Tupla con métricas de regresión o clasificacion
+    """
+    # Comprobación del tipo de problema
+    if problem_type not in ['regression', 'classification']:
+        raise ValueError("El argumento 'problem_type' debe ser 'regression' o 'classification'.")
+
+    # Comprobación de las métricas
+    valid_regression_metrics = ['RMSE', 'MAE', 'MAPE', 'GRAPH']
+    valid_classification_metrics = ['ACCURACY', 'PRECISION', 'RECALL', 'CLASS_REPORT', 'MATRIX', 'MATRIX_RECALL', 'MATRIX_PRED']
+
+    for metric in metrics:
+        if problem_type == 'regression' and metric not in valid_regression_metrics:
+            raise ValueError(f"La métrica '{metric}' no es válida para un problema de regresión.")
+        elif problem_type == 'classification' and metric not in valid_classification_metrics:
+            raise ValueError(f"La métrica '{metric}' no es válida para un problema de clasificación.")
+
+    # Obtener predicciones reales del modelo
+    predictions = model.predict(features)
+
+    # Métricas de regresión
+    regression_metrics = ()
+    if 'RMSE' in metrics:
+        rmse = np.sqrt(mean_squared_error(target, predictions))
+        print(f'RMSE: {rmse:.4f}')
+        regression_metrics += (rmse,)
+
+    if 'MAE' in metrics:
+        mae = mean_absolute_error(target, predictions)
+        print(f'MAE: {mae:.4f}')
+        regression_metrics += (mae,)
+
+    if 'MAPE' in metrics:
+        try:
+            mape = np.mean(np.abs((target - predictions) / target)) * 100
+            print(f'MAPE: {mape:.4f}%')
+            regression_metrics += (mape,)
+        except ZeroDivisionError:
+            raise ValueError("No se puede calcular MAPE cuando hay valores de target iguales a cero.")
+
+    if 'GRAPH' in metrics:
+        plt.scatter(target, predictions)
+        plt.xlabel('Target')
+        plt.ylabel('Predictions')
+        plt.title('Comparativa entre Target y Predicciones')
+        plt.show()
+
+    # Métricas de clasificación
+    classification_metrics = ()
+    if 'ACCURACY' in metrics:
+        accuracy = accuracy_score(target, predictions.round())
+        print(f'Accuracy: {accuracy:.4f}')
+        classification_metrics += (accuracy,)
+
+    if 'PRECISION' in metrics:
+        precision = precision_score(target, predictions.round(), average='macro')
+        print(f'Precision: {precision:.4f}')
+        classification_metrics += (precision,)
+
+    if 'RECALL' in metrics:
+        recall = recall_score(target, predictions.round(), average='macro')
+        print(f'Recall: {recall:.4f}')
+        classification_metrics += (recall,)
+
+    if 'CLASS_REPORT' in metrics:
+        print('Classification Report:')
+        print(classification_report(target, predictions.round()))
+
+    if 'MATRIX' in metrics:
+        print('Confusion Matrix (Absolute Values):')
+        print(confusion_matrix(target, predictions.round()))
+
+    if 'MATRIX_RECALL' in metrics:
+        disp = ConfusionMatrixDisplay(confusion_matrix(target, predictions.round(), normalize='true'))
+        disp.plot(cmap='Blues', values_format='.2f', xticks_rotation='vertical')
+        plt.title('Confusion Matrix (Normalized by Row - Recall)')
+        plt.show()
+
+    if 'MATRIX_PRED' in metrics:
+        disp = ConfusionMatrixDisplay(confusion_matrix(target, predictions.round(), normalize='pred'))
+        disp.plot(cmap='Blues', values_format='.2f', xticks_rotation='vertical')
+        plt.title('Confusion Matrix (Normalized by Column - Predictions)')
+        plt.show()
+
+    # Métricas específicas de clasificación
+    for metric in metrics:
+        if metric == 'GRAPH':
+            print("La métrica 'GRAPH' no es válida para un problema de clasificación.")
+
+        elif 'PRECISION_' in metric:
+            class_label = metric.split('_')[1]
+            precision_class = precision_score(target, predictions.round(), labels=[class_label], average=None)[0]
+            print(f'Precision {class_label}: {precision_class:.4f}')
+
+        elif 'RECALL_' in metric:
+            class_label = metric.split('_')[1]
+            recall_class = recall_score(target, predictions.round(), labels=[class_label], average=None)[0]
+            print(f'Recall {class_label}: {recall_class:.4f}')
+
+    if problem_type == 'regression':
+        return regression_metrics
+    else:
+        return classification_metrics
+    
+    
 def get_features_num_classification (df:pd.DataFrame,target_col:str,pvalue:float=0.05):
     """
     La función devuelve una lista con las columnas numéricas del dataframe cuyo ANOVA con la columna designada por "target_col" 
