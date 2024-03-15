@@ -383,8 +383,12 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         return None
     
     selected_columns=[]
+    cat_cols=[]
     for column in df.columns:
-        
+        if df[column] in ['object','category']:
+            cat_cols.append(column)
+
+    df=internal_onehotencoder(df,cat_cols)
 
     if normalize==False:
 
