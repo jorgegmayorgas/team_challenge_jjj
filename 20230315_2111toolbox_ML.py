@@ -9,7 +9,7 @@ from sklearn.feature_selection import mutual_info_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, precision_score, recall_score, classification_report, confusion_matrix,ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler,MinMaxScaler,OneHotEncoder,OrdinalEncoder
+from sklearn.preprocessing import StandardScaler,MinMaxScaler,OneHotEncoder
 
 def internal_anova_columns (df:pd.DataFrame,target_col:str,lista_num_columnas:list=[],pvalue:float=0.05):
     """
@@ -68,30 +68,6 @@ def internal_onehotencoder(df:pd.DataFrame,features_cat:list):
     df[new_features] = data
     df.drop(columns= features_cat, axis = 1, inplace = True)
     return df
-
-def internal_create_pairplot(df:pd.DataFrame,target_col:str):
-    cols = df.columns.drop(target_col)  # Exclude target_col from pairplot
-
-    # Limit the number of columns to a maximum of 5
-    cols = cols[:min(len(cols), 5)]  # Select at most 5 columns for the pairplot
-    sns.set_theme(style="ticks")
-    # Create the pairplot with hue based on target_col
-    sns.pairplot(df, vars=cols, hue=target_col, palette="viridis")
-    plt.tight_layout();
-    #plt.suptitle(f"Pairplot for group: {group_data[target_col].unique()[0]}")  # Add group title
-    plt.show();
-    return plt
-
-def internal_ordinalencoder(df:pd.DataFrame,target_col:str):
-        for column in df.columns:
-                unique_values=df[column].unique()
-                encoder = OrdinalEncoder(categories=[unique_values])
-                # Fit the encoder to the data and transform it
-                encoded_data = encoder.fit_transform(df[[column]])
-                df[column] = encoded_data.flatten()
-        return df
-
-
 
 def eval_model(features, target:str, problem_type, metrics, model):
 
@@ -314,26 +290,21 @@ def plot_features_num_classification (df:pd.DataFrame,target_col:str="",columns:
         plt.show()
     '''
     return plt
-
-def internal_loop_create_pairplot(df:pd.DataFrame,categorical_cols:list,target_col:str):
-    # Iterate through groups and create pairplots
-        for column in df[categorical_cols].columns:
-            #if df[column].dtype in ['object','category']:
-                unique_values=df[column].unique()
-                #print(f"unique_values:{unique_values}")
-                encoder = OrdinalEncoder(categories=[unique_values])
-                # Fit the encoder to the data and transform it
-                encoded_data = encoder.fit_transform(df[[column]])
-                df[column] = encoded_data.flatten()
-    
-        return internal_create_pairplot(df,target_col)
-
+    '''
+    if len(selected_columns)>0:
+        if len(selected_columns)>5:
+            #codigo para bloques de 5
+            pass
+        else:
+            #unico
+            pass
+    '''
 def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns:list=[], mi_threshold:float=0.0, normalize:bool=False):
     """
     Esta función recibe un dataframe, una argumento "target_col" con valor por defecto "", una lista de strings ("columns") cuyo valor por defecto es la lista vacía, un argumento ("mi_threshold") con valor 0.0 por defecto, y un argumento "normalize" a False.
 
     Si la lista no está vacía:
-    * La función seleccionará de esta lista los valores que correspondan a columnas o features categóricas del dataframe cuyo valor de mutual information respecto de target_col supere el umbral puesto en "mi_threshold" (con las mismas considereciones respecto a "normalize" que se comentan en la descripción de la función "get_features_cat_classification").
+    * La función seleccionara de esta lista los valores que correspondan a columnas o features categóricas del dataframe cuyo valor de mutual information respecto de target_col supere el umbral puesto en "mi_threshold" (con las mismas considereciones respecto a "normalize" que se comentan en la descripción de la función "get_features_cat_classification").
     * Para los valores seleccionados, pintará la distribución de etiquetas de cada valor respecto a los valores de la columna "target_col".
 
     Si la lista está vacía:
@@ -343,36 +314,27 @@ def plot_features_cat_classification(df:pd.DataFrame, target_col:str="", columns
     """
     if target_col and df[target_col].dtype not in ['object', 'category']:
         print("Error: 'target_col' debe ser una variable categórica del DataFrame.")
-        return None
-    if not 0.0 <= mi_threshold <= 1.0 and normalize:
+        return
+    if not 0 <= mi_threshold <= 1 and normalize:
         print("Error: 'mi_threshold' debe estar entre 0 y 1 cuando 'normalize' es True.")
-        return None
+        return
     
     if not columns:
-        categorical_cols = get_features_cat_classification(df, target_col, mi_threshold, normalize)
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
     else:
         categorical_cols = columns
-    print(categorical_cols)
-    #corregir con get_features_cat_classification
-    plt=None
-    #selected_columns=get_features_cat_classification(df, target_col, mi_threshold, normalize)
-    if len(categorical_cols)>0:
-        plt=internal_loop_create_pairplot(df,categorical_cols,target_col)
-        
 
-    '''
+    #corregir con get_features_cat_classification
     columns_for_pairplot = df[categorical_cols].columns
-    print(columns_for_pairplot)
     columns_per_plot = 5
     # Calculate the number of pair plots needed
     num_pair_plots = len(columns_for_pairplot) // columns_per_plot
+    plt=internal_sns_pairplot(num_pair_plots,columns_per_plot,columns_for_pairplot,df)
 
-    plt=internal_sns_pairplot(num_pair_plots,columns_per_plot,columns,df,target_col)
-    '''
     return plt
 
 #Javier
-def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshold:float=0.0, normalize:bool=False):
+def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshold:float=0.0, normalize:bool=False,relative:bool=False):
     '''
     Esta función recibe como argumentos un dataframe, el nombre de una de las columnas del mismo (argumento 'target_col'), que debería ser el target de un hipotético 
     modelo de clasificación, es decir debe ser una variable categórica o numérica discreta pero con baja cardinalidad, un argumento "normalize" con valor False por defecto, 
@@ -415,49 +377,45 @@ def get_features_cat_classification(df:pd.DataFrame, target_col:str, mi_threshol
         return None
     
     selected_columns=[]
-    #tmp_cat_cols=[]
-    #tmp_cat_cols = df.select_dtypes(include=['object', 'category']).columns
+    tmp_cat_cols=[]
+    tmp_cat_cols = df.select_dtypes(include=['object', 'category']).columns
     cat_cols=[]
-    for cat_col in df.columns:
-        if df[cat_col].nunique()<=10:
+    for cat_col in tmp_cat_cols:
+        if df[cat_col].nunique()<10:
             cat_cols.append(cat_col)
-    #print(f"df.columns:{df.columns}")
-    #print(f"cat_cols:{cat_cols}")
+
     if len(cat_cols)>0:
         #df=internal_onehotencoder(df,cat_cols)
-        print(f"2cat_cols:{cat_cols}")
-        df[cat_cols]=internal_ordinalencoder(df[cat_cols].copy(),target_col)
-        #print(f"2df.columns:{df.columns}")
+        onehot = OneHotEncoder(sparse_output=False, drop='first') 
+        data = onehot.fit_transform(df[cat_cols])
+        new_features = onehot.get_feature_names_out()
+        df[new_features] = data
+        df.drop(columns= cat_cols, axis = 1)
         if normalize==False:
 
-            for columna in cat_cols:
+            for columna in df.columns:
                 if columna!=target_col:
                         mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
-                        #print(f"mi_score_categorical_{columna}:{mi_score_categorical}")
                         if mi_score_categorical>=mi_threshold:
                             if columna not in selected_columns:
                                 selected_columns.append(columna)
         
         else:
             list_mi_score_categorical=[]
-            #print(f"3cat_cols:{cat_cols}")
-            #print(f"3df.columns:{df.columns}")
-            for columna in cat_cols:
+            for columna in df.columns:
                 if columna!=target_col:
-                        mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
-                        list_mi_score_categorical.append(mi_score_categorical)
-            #print(f"list_mi_score_categorical:{list_mi_score_categorical}")
-            for columna in cat_cols:
-                if columna!=target_col:
-                    mi_score_categorical = mutual_info_classif(df[[columna]], df[target_col])
-                    mi_score_categorical_normalized = mi_score_categorical/sum(list_mi_score_categorical)
-                    if mi_score_categorical_normalized>=mi_threshold:
-                            if columna not in selected_columns:
-                                selected_columns.append(columna)
+                        list_mi_score_categorical.append(mutual_info_classif(df[[columna]], df[target_col]))
+        #                if mi_score_categorical>=mi_threshold:
+        #                    if columna not in selected_columns:
+        #                        selected_columns.append(columna)
+            #mi_normalized=sum(list_mi_score_categorical)/len(list_mi_score_categorical)
+            '''duda'''
             
-        
-    return selected_columns
-    
+        return selected_columns
+
+    else:
+
+        return None    
 
 
 #version inicial toolbox_ML.py
